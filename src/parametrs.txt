@@ -1,0 +1,18 @@
+Связаны со сбоями:
+	node_context_switches_total
+	node_memory_Active_bytes
+	node_memory_MemFree_bytes (и другие с памятью)
+
+Не особо полезны:
+	node_boot_time_seconds
+	node_arp_entries
+Бесполезны:
+	node_cooling_device_cur_state
+	node_cooling_device_max_state
+	scrape_timeout_seconds (и подобные)
+
+
+Итоговый выбор признаков:
+	free_memory_ratio = node_memory_MemFree_bytes / node_memory_MemTotal_bytes
+	relative_drop = (max - last) / max
+	node_memory_Active_bytes или node_context_switches_total
