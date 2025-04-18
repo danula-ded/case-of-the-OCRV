@@ -87,7 +87,7 @@ export default function FileUploader() {
                   Перетащите CSV файл сюда или кликните для выбора
                 </p>
               )}
-              <Button className="rounded-[6.122dvh] bg-white border-none text-[#849030] text-[2dvh] mb-[4.18dvh] w-[10dvw] h-[6dvh]">
+              <Button className="rounded-[6.122dvh] cursor-pointer bg-white border-none text-[#849030] text-[2dvh] mb-[4.18dvh] w-[10dvw] h-[6dvh]">
                 Выбрать файл
               </Button>
             </Card>
