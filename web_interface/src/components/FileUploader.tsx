@@ -13,6 +13,8 @@ import {
   CartesianGrid,
 } from "recharts";
 
+import { Upload } from "lucide-react";
+
 type DataPoint = {
   label: string;
   value: number;
@@ -66,36 +68,61 @@ export default function FileUploader() {
   });
 
   return (
-    <div>
-      <Card
-        {...getRootProps()}
-        className="p-8 border-dashed border-2 cursor-pointer text-center"
-      >
-        <input {...getInputProps()} />
-        {isDragActive ? (
-          <p>Отпустите файл сюда...</p>
-        ) : (
-          <p>Перетащите CSV файл сюда или кликните для выбора</p>
-        )}
-      </Card>
+    <>
+      <div className="max-w-[36.146dvw] mx-auto mt-[28dvh]">
+        <main className=" h-[36.633dvh]">
+          <div className="p-[2.45dvh] rounded-[6.122dvh] bg-[#849030]">
+            <Card
+              {...getRootProps()}
+              className="p-0 h-[36.6dvh] bg-[#849030] rounded-[4.59dvh] border-dashed border-2 cursor-pointer flex flex-col items-center"
+            >
+              <input {...getInputProps()} />
+              <div className=" pt-[8.57dvh]">
+                <Upload size="8dvh" color="white" />
+              </div>
+              {isDragActive ? (
+                <p className="text-white text-[2dvh]">Отпустите файл сюда...</p>
+              ) : (
+                <p className="text-white  text-[2dvh]">
+                  Перетащите CSV файл сюда или кликните для выбора
+                </p>
+              )}
+              <Button className="rounded-[6.122dvh] bg-white border-none text-[#849030] text-[2dvh] mb-[4.18dvh] w-[10dvw] h-[6dvh]">
+                Выбрать файл
+              </Button>
+            </Card>
+          </div>
+        </main>
+      </div>
 
-      {downloadLink && (
-        <Button
-          className="mt-4"
-          onClick={() => window.open(downloadLink, "_blank")}
-        >
-          Скачать обработанный CSV
-        </Button>
+      {rating && (
+        <div className="mt-[5dvh] text-[4dvh] mx-auto max-w-[15dvw] flex justify-between">
+          <p>Рейтинг: </p>
+          <p className="text-[#529030] font-bold">{rating}</p>
+        </div>
       )}
 
-      {rating && <p className="mt-4 text-lg">Рейтинг: {rating}</p>}
+      {downloadLink && (
+        <div
+          className={`mx-auto ${
+            rating ? "mt-[1.6dvh]" : "mt-[5dvh]"
+          } max-w-fit`}
+        >
+          <Button
+            className="rounded-[6.122dvh] border-none text-white text-[2dvh] h-[6dvh]"
+            onClick={() => window.open(downloadLink, "_blank")}
+          >
+            Скачать обработанный CSV
+          </Button>
+        </div>
+      )}
 
       {csvData.length > 0 && (
-        <div className="mt-4">
+        <div className="mt-[1.6dvh] max-w-dvw">
           <Chart data={csvData} />
         </div>
       )}
-    </div>
+    </>
   );
 }
 
