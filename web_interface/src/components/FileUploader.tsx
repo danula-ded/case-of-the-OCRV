@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import axios from "axios";
 import Papa from "papaparse";
 import { Card } from "@/components/ui/card";
+import FullScreenLoader from "@/components/FullScreenLoader";
 
 import { Upload } from "lucide-react";
 import { Charts } from "./Chart";
@@ -18,6 +19,7 @@ export default function FileUploader() {
   const [csvData, setCsvData] = useState<DataPoint[]>([]);
   const [rating, setRating] = useState<string>("");
   const [downloadLink, setDownloadLink] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(false);
 
   const parseCsvText = (text: string) => {
     return new Promise<DataPoint[]>((resolve, reject) => {
@@ -43,6 +45,8 @@ export default function FileUploader() {
       const formData = new FormData();
       formData.append("file", file);
 
+      setIsLoading(true);
+
       axios
         .post("http://localhost:5000/upload", formData, {
           headers: { "Content-Type": "multipart/form-data" },
@@ -65,6 +69,9 @@ export default function FileUploader() {
               .catch((error) => {
                 console.error("Ошибка парсинга CSV:", error);
                 alert("Ошибка парсинга данных");
+              })
+              .finally(() => {
+                setIsLoading(false);
               });
           };
           reader.readAsText(blob);
@@ -75,6 +82,7 @@ export default function FileUploader() {
         .catch((error) => {
           console.error("Ошибка загрузки файла:", error);
           alert("Ошибка загрузки файла");
+          setIsLoading(false);
         });
     } else {
       alert("Можно загружать только CSV файлы");
@@ -108,6 +116,8 @@ export default function FileUploader() {
 
   return (
     <>
+      {isLoading && <FullScreenLoader />}
+
       <div className="max-w-[36.146dvw] mx-auto mt-[28dvh]">
         <main className=" h-[36.633dvh]">
           <div className="p-[2.45dvh] rounded-[6.122dvh] bg-[#849030]">
