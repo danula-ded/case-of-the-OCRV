@@ -85,14 +85,14 @@ def train_model():
     f1 = f1_score(y_test, y_pred)
     
     # Сохранение модели и F1-score
-    joblib.dump(model, 'model.pkl')
-    joblib.dump(f1, 'f1_score.pkl')
+    joblib.dump(model, './data/model.pkl')
+    joblib.dump(f1, './data/f1_score.pkl')
 
 # Загрузка или обучение модели
-if not os.path.exists('model.pkl') or not os.path.exists('f1_score.pkl'):
+if not os.path.exists('./data/model.pkl') or not os.path.exists('./data/f1_score.pkl'):
     train_model()
-model = joblib.load('model.pkl')
-f1_score_value = joblib.load('f1_score.pkl')
+model = joblib.load('./data/model.pkl')
+f1_score_value = joblib.load('./data/f1_score.pkl')
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -116,10 +116,10 @@ def upload_file():
         'time': test_agg.index,
         'incident': predictions
     })
-    answer_df.to_csv('answer.csv', index=False)
+    answer_df.to_csv('./data/answer.csv', index=False)
     
     # Отправка файла с заголовком X-Rating
-    response = send_file('../answer.csv', as_attachment=True, mimetype='text/csv')
+    response = send_file('../data/answer.csv', as_attachment=True, mimetype='text/csv')
     response.headers['x-rating'] = f'{f1_score_value:.4f}'
     print(f"Отправлен заголовок X-Rating: {f1_score_value:.4f}")  # Для отладки
     return response
