@@ -1,23 +1,16 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
 import Papa from "papaparse";
 import { Card } from "@/components/ui/card";
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-} from "recharts";
 
 import { Upload } from "lucide-react";
+import { Charts } from "./Chart";
 
 type DataPoint = {
-  label: string;
-  value: number;
+  time: string;
+  incident: number;
 };
 
 export default function FileUploader() {
@@ -66,6 +59,25 @@ export default function FileUploader() {
     accept: { "text/csv": [".csv"] },
     multiple: false,
   });
+
+  useEffect(() => {
+    fetch("/case-of-the-OCRV/test_checks_example.csv")
+      .then((res) => res.text())
+      .then((text) => {
+        Papa.parse<DataPoint>(text, {
+          header: true,
+          complete: (result) => {
+            const filtered = result.data
+              .filter((d) => d.time && d.incident !== undefined)
+              .map((d) => ({
+                time: d.time,
+                incident: Number(d.incident),
+              }));
+            setCsvData(filtered);
+          },
+        });
+      });
+  }, []);
 
   return (
     <>
@@ -118,22 +130,11 @@ export default function FileUploader() {
       )}
 
       {csvData.length > 0 && (
-        <div className="mt-[1.6dvh] max-w-dvw">
-          <Chart data={csvData} />
+        <div className="w-full max-w-[90dvw] mt-[26dvh] flex flex-col justify-center items-center mx-auto">
+          <h2 className="text-[5dvh] text-bold text-white">Аналитика данных</h2>
+          <Charts data={csvData} />
         </div>
       )}
     </>
-  );
-}
-
-function Chart({ data }: { data: DataPoint[] }) {
-  return (
-    <LineChart width={600} height={300} data={data}>
-      <CartesianGrid stroke="#ccc" />
-      <XAxis dataKey="label" />
-      <YAxis />
-      <Tooltip />
-      <Line type="monotone" dataKey="value" stroke="#8884d8" />
-    </LineChart>
   );
 }
