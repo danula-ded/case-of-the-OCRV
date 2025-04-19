@@ -108,8 +108,8 @@ export default function FileUploader() {
       </div>
 
       {rating && (
-        <div className="mt-[5dvh] text-[4dvh] mx-auto max-w-[15dvw] flex justify-between">
-          <p>Рейтинг: </p>
+        <div className="mt-[5dvh] text-[4dvh] mx-auto  max-w-[25dvw] flex justify-between">
+          <p>Точность модели: </p>
           <p className="text-[#529030] font-bold">{rating}</p>
         </div>
       )}
