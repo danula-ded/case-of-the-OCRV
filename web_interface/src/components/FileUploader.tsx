@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+// import { useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
@@ -17,6 +18,24 @@ export default function FileUploader() {
   const [csvData, setCsvData] = useState<DataPoint[]>([]);
   const [rating, setRating] = useState<string>("");
   const [downloadLink, setDownloadLink] = useState<string>("");
+
+  const parseCsvText = (text: string) => {
+    return new Promise<DataPoint[]>((resolve, reject) => {
+      Papa.parse<DataPoint>(text, {
+        header: true,
+        complete: (result) => {
+          const filtered = result.data
+            .filter((d) => d.time && d.incident !== undefined)
+            .map((d) => ({
+              time: d.time,
+              incident: Number(d.incident),
+            }));
+          resolve(filtered);
+        },
+        error: (error: Error) => reject(error),
+      });
+    });
+  };
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const file = acceptedFiles[0];
@@ -37,17 +56,25 @@ export default function FileUploader() {
           const reader = new FileReader();
           reader.onload = () => {
             const text = reader.result as string;
-            Papa.parse<DataPoint>(text, {
-              header: true,
-              complete: (result) => {
-                setCsvData(result.data);
-              },
-            });
+
+            // Парсим данные и обновляем state
+            parseCsvText(text)
+              .then((data) => {
+                setCsvData(data);
+              })
+              .catch((error) => {
+                console.error("Ошибка парсинга CSV:", error);
+                alert("Ошибка парсинга данных");
+              });
           };
           reader.readAsText(blob);
 
           const ratingText = response.headers["x-rating"];
           setRating(ratingText || "Нет рейтинга");
+        })
+        .catch((error) => {
+          console.error("Ошибка загрузки файла:", error);
+          alert("Ошибка загрузки файла");
         });
     } else {
       alert("Можно загружать только CSV файлы");
@@ -60,24 +87,24 @@ export default function FileUploader() {
     multiple: false,
   });
 
-  useEffect(() => {
-    fetch("/case-of-the-OCRV/test_checks_example.csv")
-      .then((res) => res.text())
-      .then((text) => {
-        Papa.parse<DataPoint>(text, {
-          header: true,
-          complete: (result) => {
-            const filtered = result.data
-              .filter((d) => d.time && d.incident !== undefined)
-              .map((d) => ({
-                time: d.time,
-                incident: Number(d.incident),
-              }));
-            setCsvData(filtered);
-          },
-        });
-      });
-  }, []);
+  // useEffect(() => {
+  //   fetch("/case-of-the-OCRV/test_checks_example.csv")
+  //     .then((res) => res.text())
+  //     .then((text) => {
+  //       Papa.parse<DataPoint>(text, {
+  //         header: true,
+  //         complete: (result) => {
+  //           const filtered = result.data
+  //             .filter((d) => d.time && d.incident !== undefined)
+  //             .map((d) => ({
+  //               time: d.time,
+  //               incident: Number(d.incident),
+  //             }));
+  //           setCsvData(filtered);
+  //         },
+  //       });
+  //     });
+  // }, []);
 
   return (
     <>
