@@ -1,25 +1,17 @@
+from flask import Flask, request, send_file
+from flask_cors import CORS
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from catboost import CatBoostClassifier
-from sklearn.metrics import f1_score, confusion_matrix, classification_report
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import f1_score
 from imblearn.over_sampling import SMOTE
-import numpy as np
-import matplotlib.pyplot as plt
+import joblib
+import os
 
-# загрузка данных
-train_df = pd.read_csv('./data/train.csv', parse_dates=['time'])
-test_df = pd.read_csv('./data/test.csv', parse_dates=['time'])
+app = Flask(__name__)
+CORS(app, resources={r"/upload": {"origins": "http://localhost:5173", "expose_headers": ["x-rating"]}})  # Разрешаем заголовок x-rating
 
-# Удаление константных столбцов (на основе train.csv)
-constant_columns = [col for col in train_df.columns if train_df[col].nunique() <= 1]
-train_df = train_df.drop(columns=constant_columns)
-test_df = test_df.drop(columns=[col for col in test_df.columns if col in constant_columns])
-
-# Установка индекса по времени
-train_df = train_df.set_index('time')
-test_df = test_df.set_index('time')
-
-# Выбор нужных признаков
+# Список выбранных признаков
 selected_features = [
     'node_memory_MemAvailable_bytes',
     'node_memory_Dirty_bytes',
@@ -35,15 +27,7 @@ selected_features = [
     'node_disk_written_bytes_total'
 ]
 
-# почасовая агрегация данных по нужным метрикам
-train_agg = train_df[selected_features].resample('1h').agg(['mean', 'std', 'min', 'max'])
-test_agg = test_df[selected_features].resample('1h').agg(['mean', 'std', 'min', 'max'])
-
-# преобразование мультииндекса в плоские столбцы
-train_agg.columns = ['_'.join(col).strip() for col in train_agg.columns.values]
-test_agg.columns = ['_'.join(col).strip() for col in test_agg.columns.values]
-
-# работа с feature: добавляем лаги
+# Важные признаки для лагов
 important_features = [
     'node_memory_MemAvailable_bytes_std',
     'node_memory_Dirty_bytes_min',
@@ -51,62 +35,94 @@ important_features = [
     'node_disk_read_bytes_total_std',
     'node_disk_io_time_seconds_total_std'
 ]
-for feat in important_features:
-    train_agg[f'{feat}_lag1'] = train_agg[feat].shift(1)
-    test_agg[f'{feat}_lag1'] = test_agg[feat].shift(1)
 
-# заполнение пропусков в формате "NaN"
-train_agg = train_agg.ffill().bfill()
-test_agg = test_agg.ffill().bfill()
+# Функция для предобработки данных
+def preprocess_data(df, is_train=False):
+    df = df.set_index('time')
+    agg_df = df[selected_features].resample('1h').agg(['mean', 'std', 'min', 'max'])
+    agg_df.columns = ['_'.join(col).strip() for col in agg_df.columns.values]
+    
+    for feat in important_features:
+        agg_df[f'{feat}_lag1'] = agg_df[feat].shift(1)
+    agg_df = agg_df.ffill().bfill()
+    
+    if is_train:
+        target_agg = df['incident'].resample('1h').max()
+        df_model = agg_df.copy()
+        df_model['incident_future'] = target_agg.shift(-1)
+        return df_model.dropna()
+    return agg_df
 
-# Целевая переменная и её сдвиг
-target_agg = train_df['incident'].resample('1h').max()
-df_model = train_agg.copy()
-df_model['incident_future'] = target_agg.shift(-1)
-df_model = df_model.dropna()
+# Обучение модели и вычисление F1-score
+def train_model():
+    train_df = pd.read_csv('./data/train.csv', parse_dates=['time'])
+    constant_columns = [col for col in train_df.columns if train_df[col].nunique() <= 1]
+    train_df = train_df.drop(columns=constant_columns)
+    
+    df_model = preprocess_data(train_df, is_train=True)
+    X = df_model.drop(columns=['incident_future'])
+    y = df_model['incident_future']
+    
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+    smote = SMOTE(sampling_strategy=0.5, k_neighbors=6, random_state=42)
+    X_train_res, y_train_res = smote.fit_resample(X_train, y_train)
+    
+    model = CatBoostClassifier(
+        iterations=300,
+        learning_rate=0.05,
+        depth=3,
+        l2_leaf_reg=15,
+        class_weights=[1, 2],
+        eval_metric='F1',
+        random_seed=42,
+        verbose=50
+    )
+    model.fit(X_train_res, y_train_res, eval_set=(X_test, y_test), use_best_model=True)
+    
+    # Вычисление F1-score на валидационной выборке
+    y_pred_proba = model.predict_proba(X_test)[:, 1]
+    y_pred = (y_pred_proba >= 0.5).astype(int)
+    f1 = f1_score(y_test, y_pred)
+    
+    # Сохранение модели и F1-score
+    joblib.dump(model, 'model.pkl')
+    joblib.dump(f1, 'f1_score.pkl')
 
-# подготавливаем данные
-X = df_model.drop(columns=['incident_future'])
-y = df_model['incident_future']
-X_test_final = test_agg[X.columns]  # совпадение столбцов с X
+# Загрузка или обучение модели
+if not os.path.exists('model.pkl') or not os.path.exists('f1_score.pkl'):
+    train_model()
+model = joblib.load('model.pkl')
+f1_score_value = joblib.load('f1_score.pkl')
 
-# Разделение данных и работа со SMOTE
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-smote = SMOTE(sampling_strategy=0.5, k_neighbors=6, random_state=42)
-X_train_res, y_train_res = smote.fit_resample(X_train, y_train)
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    file = request.files['file']
+    test_df = pd.read_csv(file, parse_dates=['time'])
+    
+    # Удаление константных столбцов, если они есть
+    constant_columns = [col for col in test_df.columns if test_df[col].nunique() <= 1]
+    test_df = test_df.drop(columns=[col for col in test_df.columns if col in constant_columns])
+    
+    # Предобработка тестовых данных
+    test_agg = preprocess_data(test_df)
+    X_test_final = test_agg[model.feature_names_]  # Совпадение столбцов с тренировочными данными
+    
+    # Предсказания
+    predictions_proba = model.predict_proba(X_test_final)[:, 1]
+    predictions = (predictions_proba >= 0.5).astype(int)
+    
+    # Создание answer.csv
+    answer_df = pd.DataFrame({
+        'time': test_agg.index,
+        'incident': predictions
+    })
+    answer_df.to_csv('answer.csv', index=False)
+    
+    # Отправка файла с заголовком X-Rating
+    response = send_file('../answer.csv', as_attachment=True, mimetype='text/csv')
+    response.headers['x-rating'] = f'{f1_score_value:.4f}'
+    print(f"Отправлен заголовок X-Rating: {f1_score_value:.4f}")  # Для отладки
+    return response
 
-# Объявление лучшего образца модели CatBoost
-best_model = CatBoostClassifier(
-    iterations=300,
-    learning_rate=0.05,
-    depth=3,
-    l2_leaf_reg=15,
-    class_weights=[1, 2],
-    eval_metric='F1',
-    random_seed=42,
-    verbose=50
-)
-
-# обучение модели
-best_model.fit(X_train_res, y_train_res, eval_set=(X_test, y_test), use_best_model=True)
-
-# оценка на тестовом наборе (sklearn.metrics)
-y_pred_proba = best_model.predict_proba(X_test)[:, 1]
-y_pred = (y_pred_proba >= 0.5).astype(int)
-print(f"F1-score: {f1_score(y_test, y_pred):.4f}")
-print("\nconfusion matrix:")
-print(confusion_matrix(y_test, y_pred))
-print("\nclassification report:")
-print(classification_report(y_test, y_pred))
-
-# предсказание на test.csv
-predictions_proba = best_model.predict_proba(X_test_final)[:, 1]
-predictions = (predictions_proba >= 0.5).astype(int)
-
-# формирование выходного файла answer.csv
-answer_df = pd.DataFrame({
-    'time': test_agg.index,
-    'incident': predictions 
-})
-answer_df.to_csv('./data/answer.csv', index=False)
-print("Файл answer.csv успешно создан")
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
