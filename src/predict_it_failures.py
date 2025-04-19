@@ -9,7 +9,15 @@ import joblib
 import os
 
 app = Flask(__name__)
-CORS(app, resources={r"/upload": {"origins": "http://localhost:5173", "expose_headers": ["x-rating"]}})  # Разрешаем заголовок x-rating
+CORS(app, resources={
+    r"/upload": {
+        "origins": [
+            "http://localhost:5173", # локальный домен
+            "https://danula-ded.github.io/case-of-the-OCRV/"  # продакшн-домен
+        ],
+        "expose_headers": ["x-rating"]
+    }
+})  # Разрешаем заголовок x-rating
 
 # Список выбранных признаков
 selected_features = [
