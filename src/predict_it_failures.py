@@ -13,7 +13,7 @@ CORS(app, resources={
     r"/upload": {
         "origins": [
             "http://localhost:5173", # локальный домен
-            "https://danula-ded.github.io/case-of-the-OCRV/"  # продакшн-домен
+            "https://danula-ded.github.io"  # продакшн-домен
         ],
         "expose_headers": ["x-rating"]
     }
